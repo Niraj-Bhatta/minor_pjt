@@ -1,15 +1,41 @@
 import { useState } from "react";
+import { useNavigate, Link } from "react-router-dom";
 import { AtSign, Lock, Eye, EyeOff, ArrowRight, CircleDot } from "lucide-react";
 
 export default function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
   const handleSubmit = (e) => {
     e.preventDefault();
-    // TODO: connect to your auth/MQTT backend
-    console.log("Signing in with:", { email, password });
+    setErrorMsg("");
+
+    // 1. Check hardcoded admin
+    if (email === "admin@parkpulse.com" && password === "admin123") {
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("currentUser", email);
+      navigate("/dashboard");
+      return;
+    }
+
+    // 2. Check users array from localStorage
+    const users = JSON.parse(localStorage.getItem("users") || "[]");
+    const foundUser = users.find(
+      (u) => u.email.toLowerCase() === email.toLowerCase() && u.password === password
+    );
+
+    if (foundUser) {
+      localStorage.setItem("isLoggedIn", "true");
+      localStorage.setItem("currentUser", foundUser.email);
+      navigate("/dashboard");
+      return;
+    }
+
+    // On failed login
+    setErrorMsg("Invalid email or password. Please try again.");
   };
 
   return (
@@ -85,6 +111,12 @@ export default function LoginPage() {
             Sign In
             <ArrowRight className="w-4 h-4" />
           </button>
+
+          {errorMsg && (
+            <p className="text-red-500 text-sm text-center font-medium mt-3">
+              {errorMsg}
+            </p>
+          )}
         </form>
 
         {/* Divider */}
@@ -114,10 +146,10 @@ export default function LoginPage() {
 
         {/* Footer link */}
         <p className="text-center text-sm text-slate-600 mt-7">
-          New to the platform?{" "}
-          <button className="font-bold text-slate-900 hover:underline">
-            Request operator access
-          </button>
+          New here?{" "}
+          <Link to="/signup" className="font-bold text-slate-900 hover:underline">
+            Create an account
+          </Link>
         </p>
       </div>
 
