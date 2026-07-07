@@ -1,8 +1,10 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { MiniMapLeaflet } from "./MiniMap.jsx";
+import { fetchLastFeedValue } from "../services/adafruitIo";
 import {
   MapPin, Navigation, Zap, Shield, Clock, ChevronRight,
-  Star, Users, Car, Wifi, Activity, CheckCircle, Menu, X
+  Star, Users, Car, Wifi, Activity, CheckCircle, Menu, X, Settings
 } from "lucide-react";
 
 // ── Colour tokens (lifted from screenshot) ──────────────────────────────────
@@ -75,68 +77,9 @@ const StatPill = ({ icon, label, value, color }) => (
 );
 
 // ── Fake mini-map component ─────────────────────────────────────────────────
-const MiniMap = ({ isDesktop, isTablet }) => {
+const MiniMap = ({ isDesktop, isTablet, iotSlots }) => {
   const height = isDesktop ? 350 : isTablet ? 280 : 200;
-  return (
-    <div style={{
-      background: "#0d1b2e", border: `1px solid ${C.border}`,
-      borderRadius: 16, overflow: "hidden", position: "relative", height,
-    }}>
-      {/* grid lines simulating a map */}
-      <svg width="100%" height="100%" style={{ position: "absolute", opacity: 0.15 }}>
-        {Array.from({ length: 10 }).map((_, i) => (
-          <line key={`h${i}`} x1="0" y1={`${i * 10}%`} x2="100%" y2={`${i * 10}%`} stroke={C.teal} strokeWidth="1" />
-        ))}
-        {Array.from({ length: 12 }).map((_, i) => (
-          <line key={`v${i}`} x1={`${i * 8.33}%`} y1="0" x2={`${i * 8.33}%`} y2="100%" stroke={C.teal} strokeWidth="1" />
-        ))}
-        {/* roads */}
-        <rect x="0" y="35%" width="100%" height="10" fill={C.border} opacity="3" />
-        <rect x="25%" y="0" width="12" height="100%" fill={C.border} opacity="3" />
-        <rect x="0" y="70%" width="100%" height="8" fill={C.border} opacity="2" />
-        <rect x="56%" y="0" width="10" height="100%" fill={C.border} opacity="2" />
-      </svg>
-      {/* parking markers */}
-      {[
-        { x: "30%", y: "38%", color: C.green, label: "P1" },
-        { x: "62%", y: "55%", color: C.accent, label: "P2" },
-        { x: "75%", y: "28%", color: C.green, label: "P3" },
-      ].map(m => (
-        <div key={m.label} style={{
-          position: "absolute", left: m.x, top: m.y,
-          transform: "translate(-50%,-50%)",
-          display: "flex", flexDirection: "column", alignItems: "center", gap: 2,
-        }}>
-          <div style={{
-            width: 28, height: 28, borderRadius: "50%",
-            background: m.color + "33", border: `2px solid ${m.color}`,
-            display: "flex", alignItems: "center", justifyContent: "center",
-          }}>
-            <MapPin size={12} color={m.color} />
-          </div>
-          <span style={{
-            background: C.bg, color: m.color, fontSize: 9, fontWeight: 700,
-            padding: "1px 5px", borderRadius: 4, border: `1px solid ${m.color}44`,
-          }}>{m.label}</span>
-        </div>
-      ))}
-      {/* legend */}
-      <div style={{
-        position: "absolute", bottom: 10, left: 10,
-        background: C.card + "ee", borderRadius: 8, padding: "6px 10px",
-        border: `1px solid ${C.border}`,
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 3 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.green }} />
-          <span style={{ color: C.subtle, fontSize: 10 }}>Available</span>
-        </div>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <div style={{ width: 8, height: 8, borderRadius: "50%", background: C.accent }} />
-          <span style={{ color: C.subtle, fontSize: 10 }}>Reserved</span>
-        </div>
-      </div>
-    </div>
-  );
+  return <MiniMapLeaflet height={height} iotSlots={iotSlots} />;
 };
 
 // ── Main Page ───────────────────────────────────────────────────────────────
@@ -144,6 +87,63 @@ export default function ParkPulseLanding() {
   const navigate = useNavigate();
   const [menuOpen, setMenuOpen] = useState(false);
   const currentUser = localStorage.getItem("currentUser");
+
+  // Adafruit IO States
+  const [iotSlots, setIotSlots] = useState(null);
+  const [username, setUsername] = useState(() => localStorage.getItem("parkpulse_username") || "");
+  const [aioKey, setAioKey] = useState(() => localStorage.getItem("parkpulse_key") || "");
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [apiStatus, setApiStatus] = useState("Offline");
+
+  // Fetch slot states on mount & set up polling
+  useEffect(() => {
+    let intervalId = null;
+
+    const fetchData = async () => {
+      if (!username || !aioKey) {
+        setApiStatus("Offline (No Credentials)");
+        setIotSlots(null);
+        return;
+      }
+
+      setApiStatus("Connecting...");
+      try {
+        const data = await fetchLastFeedValue(username, aioKey, "parking-slots");
+        if (data) {
+          setIotSlots(data);
+          setApiStatus("Connected");
+        } else {
+          setApiStatus("Empty Feed");
+        }
+      } catch (err) {
+        console.error("Landing page Adafruit IO REST fetch failed:", err);
+        setApiStatus("Error");
+      }
+    };
+
+    fetchData();
+
+    if (username && aioKey) {
+      intervalId = setInterval(fetchData, 15000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [username, aioKey]);
+
+  const handleSaveCredentials = (e) => {
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const newUsername = data.get("username").trim();
+    const newKey = data.get("key").trim();
+
+    localStorage.setItem("parkpulse_username", newUsername);
+    localStorage.setItem("parkpulse_key", newKey);
+    setUsername(newUsername);
+    setAioKey(newKey);
+    setIsSettingsOpen(false);
+  };
 
   const handleLogout = () => {
     localStorage.removeItem("isLoggedIn");
@@ -231,12 +231,34 @@ export default function ParkPulseLanding() {
                   {l}
                 </span>
               ))}
+              {/* API Status Pill */}
+              <div 
+                onClick={() => setIsSettingsOpen(true)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: C.card, border: `1px solid ${C.border}`,
+                  borderRadius: 10, padding: "7px 12px", cursor: "pointer",
+                  fontSize: 12, fontWeight: 600, color: C.subtle,
+                  transition: "all 0.2s",
+                }}
+                title="Configure Adafruit IO credentials"
+              >
+                <div style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: apiStatus === "Connected" ? C.green : C.accent,
+                  boxShadow: apiStatus === "Connected" ? `0 0 6px ${C.green}` : `0 0 6px ${C.accent}`,
+                }} />
+                <span>{apiStatus === "Connected" ? "Live" : "Demo"}</span>
+                <Settings size={12} style={{ marginLeft: 2, color: C.muted }} />
+              </div>
+
               <button
                 onClick={() => navigate("/app")}
                 style={{
                   background: C.accent, color: "#fff", border: "none",
                   borderRadius: 8, padding: "8px 16px", fontWeight: 700, fontSize: 13,
                   cursor: "pointer", boxShadow: `0 2px 10px ${C.accent}44`,
+                  marginLeft: 8,
                 }}
               >
                 Launch App
@@ -281,6 +303,24 @@ export default function ParkPulseLanding() {
                 color: C.subtle, fontSize: 14, fontWeight: 500, cursor: "pointer",
               }}>{l}</div>
             ))}
+
+            {/* Mobile API configuration row */}
+            <div 
+              onClick={() => { setIsSettingsOpen(true); setMenuOpen(false); }}
+              style={{
+                display: "flex", alignItems: "center", gap: 8,
+                padding: "10px 0", borderBottom: `1px solid ${C.border}44`,
+                color: C.subtle, fontSize: 14, fontWeight: 500, cursor: "pointer",
+              }}
+            >
+              <div style={{
+                width: 6, height: 6, borderRadius: "50%",
+                background: apiStatus === "Connected" ? C.green : C.accent,
+                boxShadow: apiStatus === "Connected" ? `0 0 6px ${C.green}` : `0 0 6px ${C.accent}`,
+              }} />
+              <span>IoT Feed: {apiStatus === "Connected" ? "Live" : "Demo"}</span>
+              <Settings size={14} style={{ marginLeft: "auto", color: C.muted }} />
+            </div>
             {currentUser && (
               <div style={{ padding: "12px 0 6px", display: "flex", flexDirection: "column", gap: 10 }}>
                 <span style={{ fontSize: 13, color: C.subtle }}>Welcome, <strong style={{ color: C.text }}>{currentUser}</strong></span>
@@ -503,7 +543,11 @@ export default function ParkPulseLanding() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {[
-                  { label: "Central Hub: Zone B", slots: "12 slots · 0.4 km", color: C.green },
+                  { 
+                    label: "Central Hub: Zone B", 
+                    slots: `${iotSlots ? Object.values(iotSlots).filter(v => v === 0).length : 4} / 4 slots available · 0.4 km`, 
+                    color: (iotSlots && Object.values(iotSlots).filter(v => v === 0).length === 0) ? C.red : C.green 
+                  },
                   { label: "East Terminal: Alpha", slots: "5 slots · 0.9 km", color: C.accent },
                 ].map((z, i) => (
                   <div key={i} style={{
@@ -524,7 +568,7 @@ export default function ParkPulseLanding() {
             </div>
 
             <div style={{ flex: isDesktop ? "1 1 60%" : undefined, width: "100%" }}>
-              <MiniMap isDesktop={isDesktop} isTablet={isTablet} />
+              <MiniMap isDesktop={isDesktop} isTablet={isTablet} iotSlots={iotSlots} />
             </div>
           </div>
         </section>
@@ -670,6 +714,108 @@ export default function ParkPulseLanding() {
             </div>
           </div>
         </footer>
+
+        {/* Settings Modal */}
+        {isSettingsOpen && (
+          <div style={{
+            position: "fixed", inset: 0, zIndex: 110, display: "flex",
+            alignItems: "center", justifyContent: "center", background: "#000000aa",
+            backdropFilter: "blur(4px)", padding: 20
+          }}>
+            <div style={{ position: "absolute", inset: 0 }} onClick={() => setIsSettingsOpen(false)} />
+            <div style={{
+              position: "relative", width: "100%", maxWidth: 360,
+              background: C.card, borderRadius: 20, border: `1px solid ${C.border}`,
+              padding: 24, boxShadow: "0 10px 40px #000000cc", display: "flex",
+              flexDirection: "column", gap: 16
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <Wifi size={18} color={C.accent} />
+                  <h3 style={{ fontSize: 16, fontWeight: 800, color: C.text }}>IoT Config</h3>
+                </div>
+                <button
+                  onClick={() => setIsSettingsOpen(false)}
+                  style={{ background: "none", border: "none", color: C.muted, cursor: "pointer", padding: 4 }}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveCredentials} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.subtle, marginBottom: 6 }}>
+                    Adafruit IO Username
+                  </label>
+                  <input
+                    type="text"
+                    name="username"
+                    defaultValue={username}
+                    placeholder="e.g. kiran_parking"
+                    required
+                    style={{
+                      width: "100%", background: C.surface, border: `1px solid ${C.border}`,
+                      borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.text,
+                      outline: "none"
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: "block", fontSize: 11, fontWeight: 600, color: C.subtle, marginBottom: 6 }}>
+                    Adafruit AIO Active Key
+                  </label>
+                  <input
+                    type="password"
+                    name="key"
+                    defaultValue={aioKey}
+                    placeholder="aio_XXXXX..."
+                    required
+                    style={{
+                      width: "100%", background: C.surface, border: `1px solid ${C.border}`,
+                      borderRadius: 10, padding: "10px 12px", fontSize: 13, color: C.text,
+                      outline: "none"
+                    }}
+                  />
+                </div>
+
+                <div style={{ height: 1, background: C.border }} />
+
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      localStorage.removeItem("parkpulse_username");
+                      localStorage.removeItem("parkpulse_key");
+                      setUsername("");
+                      setAioKey("");
+                      setApiStatus("Offline (No Credentials)");
+                      setIotSlots(null);
+                      setIsSettingsOpen(false);
+                    }}
+                    style={{
+                      flex: 1, background: "transparent", border: `1px solid ${C.border}`,
+                      color: C.red, borderRadius: 10, padding: "10px 0", fontSize: 12,
+                      fontWeight: 600, cursor: "pointer"
+                    }}
+                  >
+                    Clear Config
+                  </button>
+                  <button
+                    type="submit"
+                    style={{
+                      flex: 1, background: C.accent, color: "#fff", border: "none",
+                      borderRadius: 10, padding: "10px 0", fontSize: 12, fontWeight: 700,
+                      cursor: "pointer", boxShadow: `0 4px 14px ${C.accent}33`
+                    }}
+                  >
+                    Save Config
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
