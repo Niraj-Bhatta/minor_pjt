@@ -6,6 +6,8 @@ import {
   MapPin, Navigation, Zap, Shield, Clock, ChevronRight,
   Star, Users, Car, Wifi, Activity, CheckCircle, Menu, X, Settings
 } from "lucide-react";
+import Features from "./Features";
+import HowItWorks from "./HowItWorks";
 
 // ── Colour tokens (lifted from screenshot) ──────────────────────────────────
 const C = {
@@ -151,34 +153,15 @@ export default function ParkPulseLanding() {
     navigate("/login");
   };
 
-  const features = [
-    {
-      icon: <Activity size={20} />, color: C.accent,
-      title: "Real-Time Prediction",
-      desc: "ML models predict slot availability 45 mins before you arrive, learning your spot based on real live traffic patterns.",
-      tag: "AI POWERED",
-    },
-    {
-      icon: <Zap size={20} />, color: C.teal,
-      title: "Real-Time Precision",
-      desc: "Millisecond-accurate occupancy detection ensures you're never sent to an unavailable spot.",
-      tag: "LIVE",
-    },
-    {
-      icon: <Shield size={20} />, color: C.green,
-      title: "Frictionless Entry",
-      desc: "Automated license plate recognition and digital wallet integration — no tickets, no stress.",
-      tag: "AUTOMATED",
-    },
+  const navLinks = [
+    { label: "Features", id: "features" },
+    { label: "How It Works", id: "how-it-works" },
   ];
 
-  const steps = [
-    { num: "1", title: "Select Destination", desc: "Open the app and choose any parking zone in your routing. AI handles the rest." },
-    { num: "2", title: "Smart Routing", desc: "Receive a route that accounts for real-time traffic so you roll directly to your reserved space." },
-    { num: "3", title: "Effortless Exit", desc: "Payment is processed automatically as you depart — connected automatically as you depart." },
-  ];
-
-  const navLinks = ["Features", "How It Works", "Pricing", "Enterprise", "Blog"];
+  const scrollToSection = (id) => {
+    const el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   const { width } = useWindowSize();
   const isDesktop = width >= 1024;
@@ -217,7 +200,8 @@ export default function ParkPulseLanding() {
             <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
               {navLinks.map(l => (
                 <span
-                  key={l}
+                  key={l.id}
+                  onClick={() => scrollToSection(l.id)}
                   style={{
                     color: C.subtle,
                     fontSize: 14,
@@ -228,11 +212,11 @@ export default function ParkPulseLanding() {
                   onMouseEnter={(e) => { e.target.style.color = C.text; }}
                   onMouseLeave={(e) => { e.target.style.color = C.subtle; }}
                 >
-                  {l}
+                  {l.label}
                 </span>
               ))}
               {/* API Status Pill */}
-              <div 
+              <div
                 onClick={() => setIsSettingsOpen(true)}
                 style={{
                   display: "flex", alignItems: "center", gap: 6,
@@ -298,14 +282,18 @@ export default function ParkPulseLanding() {
             padding: "12px 20px",
           }}>
             {navLinks.map(l => (
-              <div key={l} style={{
-                padding: "10px 0", borderBottom: `1px solid ${C.border}44`,
-                color: C.subtle, fontSize: 14, fontWeight: 500, cursor: "pointer",
-              }}>{l}</div>
+              <div
+                key={l.id}
+                onClick={() => { scrollToSection(l.id); setMenuOpen(false); }}
+                style={{
+                  padding: "10px 0", borderBottom: `1px solid ${C.border}44`,
+                  color: C.subtle, fontSize: 14, fontWeight: 500, cursor: "pointer",
+                }}
+              >{l.label}</div>
             ))}
 
             {/* Mobile API configuration row */}
-            <div 
+            <div
               onClick={() => { setIsSettingsOpen(true); setMenuOpen(false); }}
               style={{
                 display: "flex", alignItems: "center", gap: 8,
@@ -477,42 +465,8 @@ export default function ParkPulseLanding() {
           </div>
         </section>
 
-        {/* ── ENTERPRISE BADGE ── */}
-        <div style={{ padding: isDesktop ? "0 40px 24px" : "0 20px 24px" }}>
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 20, marginBottom: 16 }}>
-            <Badge color={C.purple}>ENTERPRISE CAPABILITIES</Badge>
-          </div>
-          <h2 style={{ fontSize: isDesktop ? 32 : 24, fontWeight: 800, letterSpacing: -0.8, marginBottom: 6 }}>
-            Intelligence in Every Inch
-          </h2>
-        </div>
-
-        {/* ── FEATURE CARDS ── */}
-        <section style={{
-          padding: isDesktop ? "0 40px" : "0 20px",
-          display: "grid",
-          gridTemplateColumns: isDesktop ? "1fr 1fr 1fr" : isTablet ? "1fr 1fr" : "1fr",
-          gap: 14,
-        }}>
-          {features.map((f, i) => (
-            <GlowCard key={i}>
-              <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
-                <div style={{
-                  width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                  background: f.color + "22", border: `1px solid ${f.color}44`,
-                  display: "flex", alignItems: "center", justifyContent: "center", color: f.color,
-                }}>{f.icon}</div>
-                <div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 700, fontSize: 15 }}>{f.title}</span>
-                    <Badge color={f.color}>{f.tag}</Badge>
-                  </div>
-                  <p style={{ color: C.subtle, fontSize: 13, lineHeight: 1.55 }}>{f.desc}</p>
-                </div>
-              </div>
-            </GlowCard>
-          ))}
-        </section>
+        {/* ── FEATURES (imported component) ── */}
+        <Features isDesktop={isDesktop} isTablet={isTablet} />
 
         {/* ── STATS ── */}
         <section style={{
@@ -543,10 +497,10 @@ export default function ParkPulseLanding() {
 
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                 {[
-                  { 
-                    label: "Central Hub: Zone B", 
-                    slots: `${iotSlots ? Object.values(iotSlots).filter(v => v === 0).length : 4} / 4 slots available · 0.4 km`, 
-                    color: (iotSlots && Object.values(iotSlots).filter(v => v === 0).length === 0) ? C.red : C.green 
+                  {
+                    label: "Central Hub: Zone B",
+                    slots: `${iotSlots ? Object.values(iotSlots).filter(v => v === 0).length : 4} / 4 slots available · 0.4 km`,
+                    color: (iotSlots && Object.values(iotSlots).filter(v => v === 0).length === 0) ? C.red : C.green
                   },
                   { label: "East Terminal: Alpha", slots: "5 slots · 0.9 km", color: C.accent },
                 ].map((z, i) => (
@@ -573,43 +527,8 @@ export default function ParkPulseLanding() {
           </div>
         </section>
 
-        {/* ── HOW IT WORKS ── */}
-        <section style={{ padding: isDesktop ? "40px 40px" : "0 20px 32px" }}>
-          <div style={{ borderTop: `1px solid ${C.border}`, paddingTop: 24, marginBottom: 24 }}>
-            <h2 style={{ fontSize: isDesktop ? 28 : 22, fontWeight: 800, letterSpacing: -0.5, marginBottom: 6 }}>
-              Simplified Operations
-            </h2>
-            <p style={{ color: C.subtle, fontSize: 14 }}>Three steps to a smarter commute.</p>
-          </div>
-
-          <div style={{
-            display: "flex",
-            flexDirection: isDesktop ? "row" : "column",
-            gap: isDesktop ? 24 : 16,
-          }}>
-            {steps.map((s, i) => (
-              <div key={i} style={{
-                display: "flex",
-                flexDirection: isDesktop ? "column" : "row",
-                gap: 14,
-                flex: 1,
-                alignItems: isDesktop ? "flex-start" : "stretch",
-              }}>
-                <div style={{
-                  width: 36, height: 36, borderRadius: "50%", flexShrink: 0,
-                  background: `linear-gradient(135deg, ${C.accent}, ${C.purple})`,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  fontWeight: 800, fontSize: 14, color: "#fff",
-                  boxShadow: `0 4px 14px ${C.accent}44`,
-                }}>{s.num}</div>
-                <div style={{ paddingTop: isDesktop ? 4 : 6 }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, marginBottom: 4 }}>{s.title}</div>
-                  <p style={{ color: C.subtle, fontSize: 13, lineHeight: 1.55 }}>{s.desc}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
+        {/* ── HOW IT WORKS (imported component) ── */}
+        <HowItWorks isDesktop={isDesktop} />
 
         {/* ── CTA ── */}
         <section style={{

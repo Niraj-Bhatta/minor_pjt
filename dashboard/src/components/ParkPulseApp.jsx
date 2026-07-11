@@ -11,7 +11,8 @@ import {
   publishBookingCommand,
   fetchLastFeedValue
 } from "../services/adafruitIo";
-
+import Features from "./Features";
+import HowItWorks from "./HowItWorks";
 // ── Colors ──────────────────────────────────────────────────────────────────
 const C = {
   bg: "#0a0e1a",
