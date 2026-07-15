@@ -1,17 +1,6 @@
 import { useEffect, useRef } from "react";
 import { MapPin } from "lucide-react";
-
-const C = {
-    bg: "#0a0e1a",
-    card: "#141d2e",
-    border: "#1e2d45",
-    accent: "#3b82f6",
-    teal: "#06b6d4",
-    green: "#10b981",
-    text: "#f1f5f9",
-    muted: "#64748b",
-    subtle: "#94a3b8",
-};
+import { useTheme } from "../context/ThemeContext.jsx";
 
 // ── Parking slot markers data ────────────────────────────────
 const PARKING_SLOTS = [
@@ -19,7 +8,7 @@ const PARKING_SLOTS = [
         id: "P1",
         lat: 27.7172,
         lng: 85.3240,
-        color: C.green,
+        colorKey: "green",
         status: "Available",
         slots: 5,
     },
@@ -27,7 +16,7 @@ const PARKING_SLOTS = [
         id: "P2",
         lat: 27.7155,
         lng: 85.3260,
-        color: C.accent,
+        colorKey: "accent",
         status: "Reserved",
         slots: 2,
     },
@@ -35,7 +24,7 @@ const PARKING_SLOTS = [
         id: "P3",
         lat: 27.7180,
         lng: 85.3220,
-        color: C.green,
+        colorKey: "green",
         status: "Available",
         slots: 8,
     },
@@ -114,6 +103,7 @@ const DARK_MAP_STYLE = [
 const GOOGLE_MAPS_API_KEY = "AIzaSyAEtMuTf9YLh651QHd7xLqBm6gGHIkgp-o";
 
 export function MiniMapGoogle({ height = 260, iotSlots }) {
+    const { colors: C } = useTheme();
     const mapRef = useRef(null);
     const mapInstanceRef = useRef(null);
     const markersRef = useRef([]);
@@ -126,6 +116,7 @@ export function MiniMapGoogle({ height = 260, iotSlots }) {
         markersRef.current = [];
 
         const currentSlots = PARKING_SLOTS.map((slot) => {
+            const slotColor = C[slot.colorKey] || C.green;
             if (slot.id === "P1" && iotSlots) {
                 const availableCount = Object.values(iotSlots).filter((v) => v === 0).length;
                 return {
@@ -135,7 +126,10 @@ export function MiniMapGoogle({ height = 260, iotSlots }) {
                     color: availableCount > 0 ? C.green : C.red,
                 };
             }
-            return slot;
+            return {
+                ...slot,
+                color: slotColor,
+            };
         });
 
         currentSlots.forEach((slot) => {
@@ -158,11 +152,11 @@ export function MiniMapGoogle({ height = 260, iotSlots }) {
             const infoWindow = new window.google.maps.InfoWindow({
                 content: `
             <div style="
-              background: #141d2e;
-              color: #f1f5f9;
+              background: #ffffff;
+              color: #0f172a;
               padding: 10px 14px;
               border-radius: 10px;
-              border: 1px solid #1e2d45;
+              border: 1px solid #e2e8f0;
               font-family: Inter, sans-serif;
               min-width: 140px;
             ">
@@ -172,7 +166,7 @@ export function MiniMapGoogle({ height = 260, iotSlots }) {
               <div style="color: ${slot.color}; font-size: 12px; font-weight: 600;">
                 ● ${slot.status}
               </div>
-              <div style="color: #64748b; font-size: 11px; margin-top: 4px;">
+              <div style="color: #475569; font-size: 11px; margin-top: 4px;">
                 ${slot.slots} spaces available
               </div>
             </div>
@@ -212,7 +206,6 @@ export function MiniMapGoogle({ height = 260, iotSlots }) {
             const map = new window.google.maps.Map(mapRef.current, {
                 center: { lat: 27.7172, lng: 85.3240 },
                 zoom: 16,
-                styles: DARK_MAP_STYLE,
                 disableDefaultUI: true,
                 zoomControl: true,
                 zoomControlOptions: {
@@ -264,9 +257,11 @@ export function MiniMapGoogle({ height = 260, iotSlots }) {
 // ── OPTION B: OpenStreetMap (Free, No API Key needed) ─────────
 // Uses Leaflet.js — run: npm install leaflet react-leaflet
 export function MiniMapLeaflet({ height = 260, iotSlots }) {
+    const { colors: C, theme } = useTheme();
     const mapRef = useRef(null);
     const mapInstanceRef = useRef(null);
     const markersGroupRef = useRef(null);
+    const tileLayerRef = useRef(null);
 
     const updateMarkers = () => {
         if (!mapInstanceRef.current || !markersGroupRef.current) return;
@@ -276,6 +271,7 @@ export function MiniMapLeaflet({ height = 260, iotSlots }) {
         markersGroupRef.current.clearLayers();
 
         const currentSlots = PARKING_SLOTS.map((slot) => {
+            const slotColor = C[slot.colorKey] || C.green;
             if (slot.id === "P1" && iotSlots) {
                 const availableCount = Object.values(iotSlots).filter((v) => v === 0).length;
                 return {
@@ -285,7 +281,10 @@ export function MiniMapLeaflet({ height = 260, iotSlots }) {
                     color: availableCount > 0 ? C.green : C.red,
                 };
             }
-            return slot;
+            return {
+                ...slot,
+                color: slotColor,
+            };
         });
 
         currentSlots.forEach((slot) => {
@@ -300,18 +299,19 @@ export function MiniMapLeaflet({ height = 260, iotSlots }) {
 
             circle.bindPopup(`
           <div style="
-            background: #141d2e;
-            color: #f1f5f9;
+            background: #ffffff;
+            color: #0f172a;
             padding: 8px 12px;
             border-radius: 8px;
             font-family: Inter, sans-serif;
+            border: 1px solid #e2e8f0;
           ">
             <b style="font-size:14px">Slot ${slot.id}</b><br/>
             <span style="color:${slot.color}; font-size:12px">● ${slot.status}</span><br/>
-            <span style="color:#64748b; font-size:11px">${slot.slots} spaces available</span>
+            <span style="color:#475569; font-size:11px">${slot.slots} spaces available</span>
           </div>
         `, {
-                className: "dark-popup",
+                className: "light-popup",
             });
         });
     };
@@ -351,14 +351,16 @@ export function MiniMapLeaflet({ height = 260, iotSlots }) {
 
             mapInstanceRef.current = map;
 
-            // Dark tile layer (free, no API key)
-            L.tileLayer(
-                "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
-                {
-                    attribution: '© OpenStreetMap © CARTO',
-                    maxZoom: 19,
-                }
-            ).addTo(map);
+            const tileLayerUrl = theme === "dark"
+                ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+
+            const tiles = L.tileLayer(tileLayerUrl, {
+                attribution: '© OpenStreetMap © CARTO',
+                maxZoom: 19,
+            }).addTo(map);
+
+            tileLayerRef.current = tiles;
 
             // Set up markers layer group
             markersGroupRef.current = L.layerGroup().addTo(map);
@@ -386,8 +388,18 @@ export function MiniMapLeaflet({ height = 260, iotSlots }) {
                 mapInstanceRef.current = null;
             }
             markersGroupRef.current = null;
+            tileLayerRef.current = null;
         };
     }, []);
+
+    useEffect(() => {
+        if (tileLayerRef.current && window.L) {
+            const tileLayerUrl = theme === "dark"
+                ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
+                : "https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png";
+            tileLayerRef.current.setUrl(tileLayerUrl);
+        }
+    }, [theme]);
 
     useEffect(() => {
         updateMarkers();

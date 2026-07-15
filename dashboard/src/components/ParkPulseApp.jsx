@@ -3,7 +3,9 @@ import { useNavigate } from "react-router-dom";
 import {
   MapPin, Navigation, Zap, Clock, ChevronRight,
   Car, Wifi, Activity, CheckCircle, ArrowLeft,
-  Search, Settings, X, ShieldAlert, Sparkles, RefreshCw, Info, Calendar
+  Search, Settings, X, ShieldAlert, Sparkles, RefreshCw, Info, Calendar,
+  AlertTriangle, Thermometer, Droplet, Bell, Lock, Unlock,
+  Sun, Moon
 } from "lucide-react";
 import {
   connectAdafruitIoMqtt,
@@ -11,24 +13,10 @@ import {
   publishBookingCommand,
   fetchLastFeedValue
 } from "../services/adafruitIo";
+import Features from "./Features";
+import HowItWorks from "./HowItWorks";
+import { useTheme } from "../context/ThemeContext.jsx";
 
-// ── Colors ──────────────────────────────────────────────────────────────────
-const C = {
-  bg: "#0a0e1a",
-  surface: "#111827",
-  card: "#141d2e",
-  border: "#1e2d45",
-  accent: "#3b82f6",      // electric blue
-  accentGlow: "#1d4ed8",
-  teal: "#06b6d4",
-  green: "#10b981",
-  purple: "#7c3aed",
-  amber: "#f59e0b",
-  red: "#ef4444",
-  text: "#f1f5f9",
-  muted: "#64748b",
-  subtle: "#94a3b8",
-};
 
 // ── Mock Parking Locations ──────────────────────────────────────────────────
 const INITIAL_LOCATIONS = [
@@ -75,6 +63,7 @@ const INITIAL_LOCATIONS = [
 ];
 
 export default function ParkPulseApp() {
+  const { colors: C, theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
 
   // ── States ────────────────────────────────────────────────────────────────
@@ -113,6 +102,84 @@ export default function ParkPulseApp() {
   });
 
   const [bookingTimeRemaining, setBookingTimeRemaining] = useState(0);
+
+  // ── Emergency & Safety State ──────────────────────────────────────────────
+  const [safetyState, setSafetyState] = useState({
+    status: "NORMAL", // NORMAL, EMERGENCY
+    gas: 120, // ppm
+    temperature: 24, // °C
+    humidity: 45, // %
+    buzzer: "OFF", // ON, OFF
+    entryGate: "CLOSED", // OPEN, CLOSED
+    exitGate: "CLOSED", // OPEN, CLOSED
+    cause: "System Normal",
+    lastEmergencyTime: "Never",
+  });
+
+  const handleTriggerGasLeak = () => {
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setSafetyState({
+      status: "EMERGENCY",
+      gas: 450,
+      temperature: 25,
+      humidity: 45,
+      buzzer: "ON",
+      entryGate: "OPEN",
+      exitGate: "OPEN",
+      cause: "Gas Leak Detected",
+      lastEmergencyTime: timeStr,
+    });
+  };
+
+  const handleTriggerHighTemp = () => {
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setSafetyState({
+      status: "EMERGENCY",
+      gas: 120,
+      temperature: 52,
+      humidity: 30,
+      buzzer: "ON",
+      entryGate: "OPEN",
+      exitGate: "OPEN",
+      cause: "High Temperature",
+      lastEmergencyTime: timeStr,
+    });
+  };
+
+  const handleTriggerSmoke = () => {
+    const timeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    setSafetyState({
+      status: "EMERGENCY",
+      gas: 290,
+      temperature: 42,
+      humidity: 48,
+      buzzer: "ON",
+      entryGate: "OPEN",
+      exitGate: "OPEN",
+      cause: "Smoke Detected",
+      lastEmergencyTime: timeStr,
+    });
+  };
+
+  const handleSimulateSafe = () => {
+    setSafetyState(prev => ({
+      ...prev,
+      gas: 120,
+      temperature: 24,
+      humidity: 45,
+    }));
+  };
+
+  const handleResetAlarm = () => {
+    setSafetyState(prev => ({
+      ...prev,
+      status: "NORMAL",
+      buzzer: "OFF",
+      entryGate: "CLOSED",
+      exitGate: "CLOSED",
+      cause: "System Normal",
+    }));
+  };
   const [showBookingConfirm, setShowBookingConfirm] = useState(null); // slot object
   const [isPublishing, setIsPublishing] = useState(false);
   const mqttClientRef = useRef(null);
@@ -420,6 +487,20 @@ export default function ParkPulseApp() {
           </div>
 
           <button
+            onClick={toggleTheme}
+            className="theme-toggle-btn"
+            style={{
+              background: C.card, border: `1px solid ${C.border}`, color: C.text,
+              borderRadius: 10, width: 36, height: 36, cursor: "pointer",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 2px 8px rgba(0,0,0,0.06)", outline: "none"
+            }}
+            title={theme === "light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+          >
+            {theme === "light" ? <Moon size={15} color={C.text} /> : <Sun size={15} color={C.text} />}
+          </button>
+
+          <button
             onClick={() => setIsSettingsOpen(true)}
             style={{
               background: C.card, border: `1px solid ${C.border}`, color: C.text,
@@ -439,7 +520,7 @@ export default function ParkPulseApp() {
         {/* ── LEFT PANEL: SEARCH & LOT LIST ── */}
         <aside style={{
           width: "100%", maxWidth: "100%", flex: "1 1 360px",
-          background: "#0d1321", borderRight: `1px solid ${C.border}`,
+          background: C.surface, borderRight: `1px solid ${C.border}`,
           padding: "24px 20px", display: "flex", flexDirection: "column", gap: 20
         }}>
           <div>
@@ -521,42 +602,44 @@ export default function ParkPulseApp() {
                     key={loc.id}
                     onClick={() => setSelectedLot(loc)}
                     style={{
-                      background: isSelected ? C.card : "transparent",
+                      background: isSelected ? C.accent : "transparent",
                       border: `1px solid ${isSelected ? C.accent : C.border + "44"}`,
                       borderRadius: 14, padding: 16, cursor: "pointer",
                       display: "flex", justifyContent: "space-between", alignItems: "center",
-                      boxShadow: isSelected ? `0 4px 16px rgba(0,0,0,0.3)` : "none",
+                      boxShadow: isSelected ? `0 4px 16px rgba(59, 130, 246, 0.2)` : "none",
                       transition: "all 0.2s"
                     }}
                   >
                     <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
                       <div style={{
                         width: 36, height: 36, borderRadius: 8,
-                        background: loc.isIot ? C.accent + "18" : C.surface,
-                        border: `1px solid ${loc.isIot ? C.accent + "33" : C.border}`,
+                        background: isSelected ? "rgba(255, 255, 255, 0.2)" : (loc.isIot ? C.accent + "18" : C.surface),
+                        border: `1px solid ${isSelected ? "rgba(255, 255, 255, 0.3)" : (loc.isIot ? C.accent + "33" : C.border)}`,
                         display: "flex", alignItems: "center", justifyContent: "center"
                       }}>
-                        <Car size={16} color={loc.isIot ? C.accent : C.subtle} />
+                        <Car size={16} color={isSelected ? "#fff" : (loc.isIot ? C.accent : C.subtle)} />
                       </div>
                       <div>
                         <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                           <span style={{ fontWeight: 700, fontSize: 13, color: isSelected ? "#fff" : C.text }}>{loc.name}</span>
                           {loc.isIot && (
                             <span style={{
-                              background: C.green + "12", color: C.green, fontSize: 8,
+                              background: isSelected ? "rgba(255, 255, 255, 0.25)" : C.green + "12",
+                              color: isSelected ? "#fff" : C.green,
+                              fontSize: 8,
                               fontWeight: 700, padding: "1px 4px", borderRadius: 4
                             }}>IoT</span>
                           )}
                         </div>
-                        <span style={{ display: "block", fontSize: 11, color: C.subtle, marginTop: 2 }}>
+                        <span style={{ display: "block", fontSize: 11, color: isSelected ? "#e0f2fe" : C.subtle, marginTop: 2 }}>
                           {loc.address}
                         </span>
                         <div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6 }}>
-                          <span style={{ fontSize: 11, color: C.muted, display: "flex", alignItems: "center", gap: 3 }}>
+                          <span style={{ fontSize: 11, color: isSelected ? "#e0f2fe" : C.muted, display: "flex", alignItems: "center", gap: 3 }}>
                             <Navigation size={10} /> {loc.distance}
                           </span>
-                          <span style={{ color: C.border }}>•</span>
-                          <span style={{ fontSize: 11, color: C.muted }}>
+                          <span style={{ color: isSelected ? "rgba(255, 255, 255, 0.3)" : C.border }}>•</span>
+                          <span style={{ fontSize: 11, color: isSelected ? "#e0f2fe" : C.muted }}>
                             {loc.price}
                           </span>
                         </div>
@@ -565,10 +648,10 @@ export default function ParkPulseApp() {
 
                     <div style={{ textAlign: "right", display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
                       <span style={{
-                        background: isLotFull ? C.red + "12" : C.green + "12",
-                        color: isLotFull ? C.red : C.green,
+                        background: isSelected ? "rgba(255, 255, 255, 0.25)" : (isLotFull ? C.red + "12" : C.green + "12"),
+                        color: isSelected ? "#fff" : (isLotFull ? C.red : C.green),
                         fontWeight: 700, fontSize: 11, padding: "3px 6px", borderRadius: 6,
-                        border: `1px solid ${isLotFull ? C.red + "22" : C.green + "22"}`
+                        border: `1px solid ${isSelected ? "rgba(255, 255, 255, 0.3)" : (isLotFull ? C.red + "22" : C.green + "22")}`
                       }}>
                         {isLotFull ? "Full" : `${available} Free`}
                       </span>
@@ -656,9 +739,9 @@ export default function ParkPulseApp() {
               </div>
 
               <div style={{
-                background: "#0d1b2e", border: `1px solid ${C.border}`,
+                background: C.card, border: `1px solid ${C.border}`,
                 borderRadius: 20, overflow: "hidden", position: "relative", height: 360,
-                boxShadow: "0 8px 24px rgba(0,0,0,0.4)"
+                boxShadow: "0 8px 24px rgba(0,0,0,0.06)"
               }}>
                 {/* SVG background grid */}
                 <svg width="100%" height="100%" style={{ position: "absolute", opacity: 0.15 }}>
@@ -779,9 +862,9 @@ export default function ParkPulseApp() {
 
                     {/* The Grid slots mapping */}
                     <div style={{
-                      background: "#0d1726", border: `1px solid ${C.border}`, borderRadius: 16,
+                      background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16,
                       padding: 24, display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(130px, 1fr))",
-                      gap: 16, boxShadow: "inset 0 4px 20px #00000040"
+                      gap: 16, boxShadow: "inset 0 4px 20px rgba(0,0,0,0.02)"
                     }}>
                       {getSlotsForLot(selectedLot).map(slot => {
                         const isOccupied = slot.value === 1;
@@ -797,13 +880,13 @@ export default function ParkPulseApp() {
                         let statusColor = C.green;
 
                         if (isOccupied) {
-                          cardBg = "#1f1418";
+                          cardBg = "#fee2e2";
                           cardBorder = C.red + "33";
                           textColor = C.muted;
                           textStatus = "Occupied";
                           statusColor = C.red;
                         } else if (isReserved) {
-                          cardBg = isMine ? "#1c1b12" : "#1a1610";
+                          cardBg = isMine ? "#eff6ff" : "#fff7ed";
                           cardBorder = isMine ? C.accent + "55" : C.amber + "33";
                           textColor = isMine ? C.text : C.subtle;
                           textStatus = isMine ? "Your Hold" : "Reserved";
@@ -919,6 +1002,289 @@ export default function ParkPulseApp() {
             </div>
           </div>
         </main>
+
+        {/* ── FAR RIGHT PANEL: EMERGENCY MONITORING ── */}
+        <aside style={{
+          flex: "1 1 320px",
+          background: safetyState.status === "EMERGENCY" 
+            ? (theme === "dark" ? "linear-gradient(135deg, #3f0712 0%, #18000a 100%)" : "linear-gradient(135deg, #fff5f5 0%, #fed7d7 100%)") 
+            : C.surface,
+          borderLeft: safetyState.status === "EMERGENCY" ? "2px solid #ef4444" : `1px solid ${C.border}`,
+          boxShadow: safetyState.status === "EMERGENCY" && theme === "dark" ? "inset 0 0 20px rgba(239, 68, 68, 0.35), 0 0 15px rgba(239, 68, 68, 0.2)" : "none",
+          padding: "24px 20px",
+          display: "flex",
+          flexDirection: "column",
+          gap: 20,
+          transition: "all 0.4s ease",
+          position: "relative",
+          overflow: "hidden"
+        }}>
+          {/* Title */}
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div className={safetyState.status === "EMERGENCY" ? "animate-pulse-glow" : ""} style={{
+              width: 36, height: 36, borderRadius: "50%",
+              background: safetyState.status === "EMERGENCY" ? `${C.red}18` : `${C.green}18`,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              color: safetyState.status === "EMERGENCY" ? C.red : C.green,
+              transition: "all 0.3s ease"
+            }}>
+              {safetyState.status === "EMERGENCY" ? <AlertTriangle size={18} /> : <ShieldAlert size={18} />}
+            </div>
+            <h2 style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.5, color: safetyState.status === "EMERGENCY" ? (theme === "dark" ? "#fee2e2" : "#991b1b") : C.text }}>
+              Emergency Monitoring
+            </h2>
+          </div>
+
+          {/* Emergency Banner */}
+          <div 
+            className={safetyState.status === "EMERGENCY" ? "animate-emergency-flash" : ""}
+            style={{
+              borderRadius: 14,
+              padding: 16,
+              background: safetyState.status === "EMERGENCY" ? "none" : "linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)",
+              border: `1px solid ${safetyState.status === "EMERGENCY" ? C.red : "#bbf7d0"}`,
+              color: safetyState.status === "EMERGENCY" ? "#ffffff" : "#166534",
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              boxShadow: safetyState.status === "EMERGENCY" ? "0 4px 14px rgba(220, 38, 38, 0.25)" : "none",
+              transition: "all 0.3s ease"
+            }}
+          >
+            {safetyState.status === "EMERGENCY" ? (
+              <>
+                <span style={{ fontWeight: 800, fontSize: 13, letterSpacing: 0.5 }}>
+                  🚨 {safetyState.cause.toUpperCase()}
+                </span>
+                <span style={{ fontSize: 11, opacity: 0.9, fontWeight: 600 }}>Alarm Activated</span>
+                <span style={{ fontSize: 10, opacity: 0.85, display: "flex", alignItems: "center", gap: 4 }}>
+                  <Unlock size={10} /> Entry Gate Opened
+                </span>
+                <span style={{ fontSize: 10, opacity: 0.85, display: "flex", alignItems: "center", gap: 4 }}>
+                  <Unlock size={10} /> Exit Gate Opened
+                </span>
+                <div style={{
+                  marginTop: 6,
+                  background: theme === "dark" ? "#1e293b" : "#ffffff",
+                  color: theme === "dark" ? "#fecaca" : C.red,
+                  fontWeight: 800,
+                  fontSize: 11,
+                  textAlign: "center",
+                  padding: "4px 0",
+                  borderRadius: 6,
+                  textTransform: "uppercase",
+                  letterSpacing: 1
+                }}>
+                  Evacuate Immediately
+                </div>
+              </>
+            ) : (
+              <>
+                <span style={{ fontWeight: 800, fontSize: 12, display: "flex", alignItems: "center", gap: 6 }}>
+                  🛡️ System Operating Normally
+                </span>
+                <span style={{ fontSize: 10, opacity: 0.8 }}>All sensors within safe thresholds.</span>
+              </>
+            )}
+          </div>
+
+          {/* Live Parameters Card List */}
+          <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+            
+            {/* Status */}
+            <div style={{
+              background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+              padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center"
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Safety Status</span>
+              <span 
+                className={safetyState.status === "EMERGENCY" ? "animate-badge-pulse" : ""}
+                style={{
+                  background: safetyState.status === "EMERGENCY" ? `${C.red}18` : `${C.green}18`,
+                  color: safetyState.status === "EMERGENCY" ? C.red : C.green,
+                  fontSize: 10, fontWeight: 700, padding: "3px 8px", borderRadius: 6,
+                  border: `1px solid ${safetyState.status === "EMERGENCY" ? `${C.red}33` : `${C.green}33`}`
+                }}
+              >
+                {safetyState.status}
+              </span>
+            </div>
+
+            {/* Gas Sensor */}
+            <div style={{
+              background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+              padding: "12px 14px", display: "flex", flexDirection: "column", gap: 4
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Gas Sensor</span>
+                <span style={{
+                  color: safetyState.gas >= 300 ? C.red : safetyState.gas >= 200 ? C.amber : C.green,
+                  fontSize: 11, fontWeight: 700
+                }}>
+                  {safetyState.gas >= 300 ? "Dangerous" : safetyState.gas >= 200 ? "Warning" : "Safe"}
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 2 }}>
+                <span style={{ fontSize: 18, fontWeight: 800, color: safetyState.gas >= 300 ? C.red : safetyState.gas >= 200 ? C.amber : C.green }}>
+                  {safetyState.gas} <span style={{ fontSize: 11, fontWeight: 600 }}>ppm</span>
+                </span>
+                <span style={{ fontSize: 10, color: C.subtle }}>Threshold: 300ppm</span>
+              </div>
+            </div>
+
+            {/* Temp & Humidity Split Row */}
+            <div style={{ display: "flex", gap: 10 }}>
+              {/* Temp */}
+              <div style={{
+                flex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+                padding: "12px 14px", display: "flex", flexDirection: "column", gap: 4
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, display: "flex", alignItems: "center", gap: 4 }}>
+                  <Thermometer size={13} color={C.accent} /> Temp
+                </span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: safetyState.temperature >= 40 ? C.red : safetyState.temperature >= 35 ? C.amber : C.green, marginTop: 2 }}>
+                  {safetyState.temperature} °C
+                </span>
+              </div>
+              {/* Humidity */}
+              <div style={{
+                flex: 1, background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+                padding: "12px 14px", display: "flex", flexDirection: "column", gap: 4
+              }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.muted, display: "flex", alignItems: "center", gap: 4 }}>
+                  <Droplet size={13} color={C.teal} /> Humidity
+                </span>
+                <span style={{ fontSize: 16, fontWeight: 800, color: C.text, marginTop: 2 }}>
+                  {safetyState.humidity} %
+                </span>
+              </div>
+            </div>
+
+            {/* Buzzer Status */}
+            <div style={{
+              background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+              padding: "12px 14px", display: "flex", justifyContent: "space-between", alignItems: "center"
+            }}>
+              <span style={{ fontSize: 12, fontWeight: 600, color: C.muted, display: "flex", alignItems: "center", gap: 6 }}>
+                <Bell size={13} color={C.purple} /> Buzzer Status
+              </span>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <span style={{
+                  width: 6, height: 6, borderRadius: "50%",
+                  background: safetyState.buzzer === "ON" ? C.red : C.green
+                }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: safetyState.buzzer === "ON" ? C.red : C.green }}>
+                  {safetyState.buzzer}
+                </span>
+              </div>
+            </div>
+
+            {/* Gates Status */}
+            <div style={{
+              background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+              padding: "12px 14px", display: "flex", flexDirection: "column", gap: 10
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Entry Gate</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: safetyState.entryGate === "OPEN" ? C.green : C.muted }}>
+                  {safetyState.entryGate}
+                </span>
+              </div>
+              <div style={{ height: 1, background: C.border }} />
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 12, fontWeight: 600, color: C.muted }}>Exit Gate</span>
+                <span style={{ fontSize: 12, fontWeight: 700, color: safetyState.exitGate === "OPEN" ? C.green : C.muted }}>
+                  {safetyState.exitGate}
+                </span>
+              </div>
+            </div>
+
+            {/* Cause & Last Time */}
+            <div style={{
+              background: C.card, border: `1px solid ${C.border}`, borderRadius: 12,
+              padding: "12px 14px", display: "flex", flexDirection: "column", gap: 6
+            }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                <span style={{ color: C.subtle }}>Alarm Cause</span>
+                <span style={{ fontWeight: 700, color: safetyState.status === "EMERGENCY" ? C.red : C.green }}>{safetyState.cause}</span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                <span style={{ color: C.subtle }}>Last Incident</span>
+                <span style={{ fontWeight: 600, color: C.text }}>{safetyState.lastEmergencyTime}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Reset Alarm Button */}
+          <button
+            disabled={!(safetyState.gas < 300 && safetyState.temperature < 40) || safetyState.status === "NORMAL"}
+            onClick={handleResetAlarm}
+            style={{
+              background: (safetyState.gas < 300 && safetyState.temperature < 40) && safetyState.status === "EMERGENCY" ? C.accent : C.surface,
+              color: (safetyState.gas < 300 && safetyState.temperature < 40) && safetyState.status === "EMERGENCY" ? "#fff" : C.subtle,
+              border: `1px solid ${(safetyState.gas < 300 && safetyState.temperature < 40) && safetyState.status === "EMERGENCY" ? C.accent : C.border}`,
+              borderRadius: 10, padding: "12px 0", cursor: ((safetyState.gas < 300 && safetyState.temperature < 40) && safetyState.status === "EMERGENCY") ? "pointer" : "not-allowed",
+              fontWeight: 700, fontSize: 12, textAlign: "center", transition: "all 0.2s",
+              boxShadow: (safetyState.gas < 300 && safetyState.temperature < 40) && safetyState.status === "EMERGENCY" ? `0 4px 14px ${C.accent}33` : "none",
+              marginTop: 4
+            }}
+          >
+            Reset Alarm
+          </button>
+          {!(safetyState.gas < 300 && safetyState.temperature < 40) && safetyState.status === "EMERGENCY" && (
+            <span style={{ fontSize: 10, color: C.red, textAlign: "center", fontWeight: 600, marginTop: -4 }}>
+              Sensors must clear to safe levels to reset alarm.
+            </span>
+          )}
+
+          {/* ── SIMULATOR TRIGGER CONTROLS ── */}
+          <div style={{
+            marginTop: "auto", borderTop: `1px solid ${C.border}`, paddingTop: 16,
+            display: "flex", flexDirection: "column", gap: 8
+          }}>
+            <span style={{ fontSize: 10, fontWeight: 700, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>
+              🚨 Safety Simulation Tools
+            </span>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6 }}>
+              <button
+                onClick={handleTriggerGasLeak}
+                style={{
+                  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6,
+                  padding: "6px 0", fontSize: 10, color: C.text, cursor: "pointer", fontWeight: 600
+                }}
+              >
+                Gas Leak
+              </button>
+              <button
+                onClick={handleTriggerHighTemp}
+                style={{
+                  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6,
+                  padding: "6px 0", fontSize: 10, color: C.text, cursor: "pointer", fontWeight: 600
+                }}
+              >
+                Heat Spike
+              </button>
+              <button
+                onClick={handleTriggerSmoke}
+                style={{
+                  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6,
+                  padding: "6px 0", fontSize: 10, color: C.text, cursor: "pointer", fontWeight: 600
+                }}
+              >
+                Smoke Alarm
+              </button>
+              <button
+                onClick={handleSimulateSafe}
+                style={{
+                  background: C.surface, border: `1px solid ${C.border}`, borderRadius: 6,
+                  padding: "6px 0", fontSize: 10, color: C.text, cursor: "pointer", fontWeight: 600
+                }}
+              >
+                Safe Levels
+              </button>
+            </div>
+          </div>
+        </aside>
       </div>
 
       {/* ── PERSISTENT BOOKING BANNER (FLOATING SIDE CARD ON DESKTOP) ── */}
